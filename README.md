@@ -1,0 +1,1 @@
+# CLIP Heatmap Visualization Tool
