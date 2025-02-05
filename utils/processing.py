@@ -14,27 +14,38 @@ model, preprocess = clip.load("ViT-B/32", device=device)
 def predict_heatmap(image, text_prompt):
     """
     Given an input image and a text prompt, generate a heatmap using CLIP.
-
+    
+    For images whose maximum dimension exceeds 2048, the image is rescaled to have
+    a maximum dimension of 2048 for processing. The resulting heatmap is then upsampled
+    back to the original image resolution.
+    
     The image is processed using a sliding window approach, and the cosine similarity
     is computed for each patch. The resulting low-resolution heatmap is then upsampled 
-    to the original image size.
-
+    to the (original) image size.
+    
     Parameters:
         image (PIL.Image): Input image.
         text_prompt (str): Text prompt.
-
+    
     Returns:
-        PIL.Image: The generated heatmap image.
+        PIL.Image: The generated heatmap image, resized back to the original resolution.
     """
     if image is None or text_prompt.strip() == "":
         return None
 
-    # Convert numpy array to PIL Image if necessary.
-    if isinstance(image, np.ndarray):
-        image = Image.fromarray(image.astype('uint8'), 'RGB')
+    original_width, original_height = image.size
+
+    max_dim = max(original_width, original_height)
+    scale_factor = 1.0
+    if max_dim > 2048:
+        scale_factor = 2048 / max_dim
+        image = image.resize(
+            (int(original_width * scale_factor), int(original_height * scale_factor)),
+            resample=Image.BILINEAR
+        )
+
     width, height = image.size
 
-    # Encode the text prompt.
     text_tokens = clip.tokenize([text_prompt]).to(device)
     with torch.no_grad():
         text_features = model.encode_text(text_tokens)
@@ -77,9 +88,8 @@ def predict_heatmap(image, text_prompt):
     # Convert the low-resolution similarity grid to a grayscale image.
     sim_img = (sim_norm * 255).astype(np.uint8)
     sim_img_pil = Image.fromarray(sim_img, mode='L')
-    # Upsample to the original image size.
+    # Upsample to the processed image size.
     sim_img_resized = sim_img_pil.resize((width, height), resample=Image.BILINEAR)
-    # (Optional) You can get the underlying normalized similarity as a NumPy array:
     sim_resized_np = np.array(sim_img_resized).astype(np.float32) / 255.0
 
     # Generate a color heatmap using the 'jet' colormap.
@@ -87,17 +97,22 @@ def predict_heatmap(image, text_prompt):
     heatmap_rgba = cmap(sim_resized_np)
     heatmap_rgb = np.uint8(heatmap_rgba[:, :, :3] * 255)
     heatmap_pil = Image.fromarray(heatmap_rgb)
+
+    # If the image was rescaled for processing, upscale the heatmap back to original dimensions.
+    if scale_factor < 1.0:
+        heatmap_pil = heatmap_pil.resize((original_width, original_height), resample=Image.BILINEAR)
+
     return heatmap_pil
 
 def overlay_images(original, heatmap, alpha):
     """
     Overlay the heatmap on the original image with the given transparency.
-
+    
     Parameters:
         original (PIL.Image): The original image.
         heatmap (PIL.Image): The generated heatmap.
         alpha (float): The transparency level for the heatmap overlay (0 to 1).
-
+    
     Returns:
         PIL.Image: The blended image.
     """
@@ -111,12 +126,12 @@ def overlay_images(original, heatmap, alpha):
 def predict_and_overlay(image, text_prompt, alpha):
     """
     Generate the heatmap and overlay it on the original image with the given alpha.
-
+    
     Parameters:
         image (PIL.Image): The original image.
         text_prompt (str): Text prompt.
         alpha (float): Transparency value for overlay.
-
+    
     Returns:
         tuple: (blended_image, pure_heatmap)
             blended_image (PIL.Image): The image with heatmap overlay.
@@ -131,12 +146,12 @@ def predict_and_overlay(image, text_prompt, alpha):
 def update_overlay_from_slider(image, heatmap, alpha):
     """
     Update the overlay image based on the new alpha value from the slider.
-
+    
     Parameters:
         image (PIL.Image): The original image.
         heatmap (PIL.Image): The saved pure heatmap.
         alpha (float): New transparency value.
-
+    
     Returns:
         PIL.Image: The updated blended image.
     """
@@ -147,12 +162,12 @@ def update_overlay_from_slider(image, heatmap, alpha):
 def save_numpy_heatmap(heatmap):
     """
     Save the given heatmap (PIL Image) as a NumPy array (.npy file).
-
+    
     The file is saved in the "saved_heatmaps" directory with a timestamp in its filename.
-
+    
     Parameters:
         heatmap (PIL.Image): The heatmap to be saved.
-
+    
     Returns:
         str: A status message indicating where the file was saved.
     """

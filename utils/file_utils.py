@@ -15,7 +15,7 @@ def refresh_file_list(directory):
     if not os.path.exists(directory):
         return []
     files = [f for f in os.listdir(directory)
-             if f.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp'))]
+             if f.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp', '.tiff'))]
     return files
 
 def load_selected_image(directory, filename):
