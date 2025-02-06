@@ -22,6 +22,8 @@ def build_interface():
                 refresh_btn = gr.Button("Refresh Image List")
                 image_list = gr.Dropdown(label="Select Image", choices=[], interactive=True)
                 text_prompt = gr.Textbox(label="Text Prompt", placeholder="Enter text prompt here")
+                patch_size_slider = gr.Slider(label="Patch Size", minimum=4, maximum=256, step=1, value=32)
+                stride_slider = gr.Slider(label="Sliding Window Stride", minimum=1, maximum=256, step=1, value=16)
                 predict_btn = gr.Button("Predict")
                 status_text = gr.Textbox(label="Status", interactive=False)
             
@@ -36,25 +38,23 @@ def build_interface():
         
         heatmap_state = gr.State(None)
 
-        
         refresh_btn.click(fn=refresh_list, inputs=dir_text, outputs=image_list)
         image_list.change(fn=on_select_image, inputs=[dir_text, image_list], outputs=input_image)
         
-        
         predict_btn.click(
             fn=predict_and_overlay,
-            inputs=[input_image, text_prompt, alpha_slider],
+            inputs=[input_image, text_prompt, alpha_slider, patch_size_slider, stride_slider],
             outputs=[overlay_image, heatmap_state]
         )
         
-        
+        # The slider updates the overlay image in real time based on the new alpha value.
         alpha_slider.change(
             fn=update_overlay_from_slider,
             inputs=[input_image, heatmap_state, alpha_slider],
             outputs=overlay_image
         )
         
-        
+        # The "Save Numpy Heatmap" button saves the pure heatmap as a NumPy array.
         save_btn.click(
             fn=save_numpy_heatmap,
             inputs=heatmap_state,
